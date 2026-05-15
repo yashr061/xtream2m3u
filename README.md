@@ -120,11 +120,15 @@ export XTREAM_URL=http://iptv.example.com:8080
 export XTREAM_USERNAME=myuser
 export XTREAM_PASSWORD=mypass
 
-# Save a filtered playlist to a file
+# Live channels only (default), filtered
 python cli.py --wanted-groups "Sports*,News" --enable-catchup -o playlist.m3u
 
-# Pipe to stdout (composes with shell tools)
-python cli.py --include-vod | grep "Movies"
+# Movies only, no live channels
+python cli.py --no-include-live --include-vod -o movies.m3u
+
+# List all series as JSON, then build a playlist for specific ones
+python cli.py --list-series > catalog.json
+python cli.py --series 30350,30351,30352 -o my_shows.m3u
 
 # Combine with cron for periodic refresh
 0 */6 * * * python /path/to/cli.py --wanted-groups "..." -o /var/iptv/list.m3u
@@ -148,7 +152,9 @@ For advanced users or automation, you can use the API endpoints directly.
 | `password` | string | Yes | IPTV Password |
 | `unwanted_groups` | string | No | Comma-separated list of groups to **exclude** |
 | `wanted_groups` | string | No | Comma-separated list of groups to **include** (takes precedence) |
-| `include_vod` | boolean | No | Set `true` to include Movies & Series (default: `false`) |
+| `include_live` | boolean | No | Set `false` to omit live channels (default: `true`) |
+| `include_vod` | boolean | No | Set `true` to include movies (default: `false`) |
+| `include_series` | boolean | No | Set `true` to include TV series (default: `false`) |
 | `nostreamproxy` | boolean | No | Set `true` to disable stream proxying (direct links) |
 | `proxy_url` | string | No | Custom base URL for proxied streams |
 | `include_channel_id` | boolean | No | Set `true` to include `epg_channel_id` tag |
@@ -158,9 +164,11 @@ For advanced users or automation, you can use the API endpoints directly.
 **Wildcard Support:** `unwanted_groups` and `wanted_groups` support `*` (wildcard) and `?` (single char).
 *   Example: `*Sports*` matches "Sky Sports", "BeIN Sports", etc.
 
+> **Note on `include_vod`:** for backwards compatibility, `include_vod=true` alone (without an explicit `include_series` value) still pulls in both movies AND series, matching the pre-split behavior. Pass `include_series=false` explicitly to get movies only.
+
 **Example:**
 ```
-http://localhost:5000/m3u?url=http://iptv.com&username=user&password=pass&wanted_groups=Sports*,News&include_vod=true
+http://localhost:5000/m3u?url=http://iptv.com&username=user&password=pass&wanted_groups=Sports*,News&include_vod=true&include_series=true
 ```
 
 ### 2. Generate XMLTV Guide
@@ -183,9 +191,42 @@ Returns a JSON list of all available categories.
 | `url` | string | Yes | IPTV Service URL |
 | `username` | string | Yes | IPTV Username |
 | `password` | string | Yes | IPTV Password |
-| `include_vod` | boolean | No | Set `true` to include VOD categories |
+| `include_live` | boolean | No | Set `false` to omit live categories (default: `true`) |
+| `include_vod` | boolean | No | Set `true` to include movie categories |
+| `include_series` | boolean | No | Set `true` to include series categories |
 
-### 4. Proxy Endpoints
+### 4. List Series
+`GET /series`
+
+Returns a JSON array of available series — fast, no episode fetching. Useful for picking a subset to then request from `/episodes`.
+
+| Parameter | Type | Required | Description |
+| :--- | :--- | :--- | :--- |
+| `url`, `username`, `password` | string | Yes | Xtream credentials |
+| `wanted_groups` | string | No | Comma-separated category patterns to include (wildcards supported) |
+| `unwanted_groups` | string | No | Comma-separated category patterns to exclude |
+
+Response shape:
+```json
+[
+  {"series_id": 30350, "name": "Some Show", "category_id": "85", "category_name": "Drama"},
+  ...
+]
+```
+
+### 5. Episodes Playlist
+`GET /episodes?series=ID1,ID2,ID3`
+
+Returns an M3U playlist containing every episode of the requested series IDs — much faster than `/m3u?include_series=true` when you only care about a handful of shows.
+
+| Parameter | Type | Required | Description |
+| :--- | :--- | :--- | :--- |
+| `url`, `username`, `password` | string | Yes | Xtream credentials |
+| `series` | string | Yes | Comma-separated series IDs (e.g. `30350,30351,30352`) |
+| `nostreamproxy` | boolean | No | Set `true` to disable stream proxying |
+| `proxy_url` | string | No | Custom base URL for proxied streams |
+
+### 6. Proxy Endpoints
 *   `GET /image-proxy/<encoded_url>`: Proxies images (logos, covers).
 *   `GET /stream-proxy/<encoded_url>`: Proxies video streams.
 

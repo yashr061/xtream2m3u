@@ -45,13 +45,34 @@
                         </div>
 
                         <div class="form-group">
+                            <label style="margin-bottom: 0.5rem;">Content Types</label>
+                            <div class="checkbox-wrapper">
+                                <label class="checkbox-label">
+                                    <input type="checkbox" id="includeLive" checked>
+                                    <div class="checkmark"></div>
+                                    <div class="checkbox-text">
+                                        <strong>Live Channels</strong>
+                                        <small>Fast — always recommended</small>
+                                    </div>
+                                </label>
+                            </div>
                             <div class="checkbox-wrapper">
                                 <label class="checkbox-label">
                                     <input type="checkbox" id="includeVod">
                                     <div class="checkmark"></div>
                                     <div class="checkbox-text">
-                                        <strong>Include VOD Content</strong>
-                                        <small>Movies & Series (May increase loading time)</small>
+                                        <strong>Movies (VOD)</strong>
+                                        <small>Adds movies — moderate load time</small>
+                                    </div>
+                                </label>
+                            </div>
+                            <div class="checkbox-wrapper">
+                                <label class="checkbox-label">
+                                    <input type="checkbox" id="includeSeries">
+                                    <div class="checkmark"></div>
+                                    <div class="checkbox-text">
+                                        <strong>TV Series</strong>
+                                        <small>Episode data is slow — minutes to hours</small>
                                     </div>
                                 </label>
                             </div>

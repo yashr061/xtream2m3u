@@ -1,4 +1,4 @@
-"""API routes for Xtream Codes proxy (categories, M3U, XMLTV)"""
+"""API routes for Xtream Codes proxy (categories, M3U, XMLTV, series, episodes)"""
 import json
 import logging
 import os
@@ -9,14 +9,47 @@ from flask import Blueprint, Response, current_app, jsonify, request
 from app.services import (
     fetch_api_data,
     fetch_categories_and_channels,
+    fetch_series_listing,
+    generate_episodes_playlist,
     generate_m3u_playlist,
     validate_xtream_credentials,
 )
-from app.utils import encode_url, parse_group_list
+from app.utils import encode_url, group_matches, parse_group_list
 
 logger = logging.getLogger(__name__)
 
 api_bp = Blueprint('api', __name__)
+
+
+def parse_content_flags(data, is_post):
+    """Parse include_live / include_vod / include_series flags with soft backward compat.
+
+    Legacy behavior: ?include_vod=true alone (no explicit include_series) used to mean
+    'include both movies and series'. We preserve that when the caller hasn't opted in
+    to the new granular semantics.
+    """
+    def _raw(key):
+        if is_post:
+            return data.get(key)
+        return request.args.get(key)
+
+    def _bool(key, default):
+        raw = _raw(key)
+        if raw is None:
+            return default
+        return str(raw).lower() == "true"
+
+    include_live = _bool("include_live", True)
+    include_vod = _bool("include_vod", False)
+    include_series = _bool("include_series", False)
+
+    # Soft compat: legacy include_vod=true with no explicit include_series
+    # means 'movies + series' (the old semantics).
+    series_explicit = _raw("include_series") is not None
+    if include_vod and not series_explicit:
+        include_series = True
+
+    return include_live, include_vod, include_series
 
 
 def get_required_params():
@@ -55,9 +88,9 @@ def get_categories():
     if error:
         return error, status_code
 
-    # Check for VOD parameter - default to false to avoid timeouts (VOD is massive and slow!)
-    include_vod = request.args.get("include_vod", "false").lower() == "true"
-    logger.info(f"VOD content requested: {include_vod}")
+    # Parse granular content-type flags (with soft backward compat for legacy include_vod)
+    include_live, include_vod, include_series = parse_content_flags({}, is_post=False)
+    logger.info(f"Categories requested - live: {include_live}, vod: {include_vod}, series: {include_series}")
 
     # Validate credentials
     user_data, error_json, error_code = validate_xtream_credentials(url, username, password)
@@ -65,7 +98,10 @@ def get_categories():
         return error_json, error_code, {"Content-Type": "application/json"}
 
     # Fetch categories
-    categories, channels, error_json, error_code = fetch_categories_and_channels(url, username, password, include_vod)
+    categories, channels, error_json, error_code = fetch_categories_and_channels(
+        url, username, password,
+        include_live=include_live, include_vod=include_vod, include_series=include_series,
+    )
     if error_json:
         return error_json, error_code, {"Content-Type": "application/json"}
 
@@ -130,24 +166,28 @@ def generate_m3u():
         unwanted_groups = parse_group_list(data.get("unwanted_groups", ""))
         wanted_groups = parse_group_list(data.get("wanted_groups", ""))
         no_stream_proxy = str(data.get("nostreamproxy", "")).lower() == "true"
-        include_vod = str(data.get("include_vod", "false")).lower() == "true"
         include_channel_id = str(data.get("include_channel_id", "false")).lower() == "true"
         channel_id_tag = str(data.get("channel_id_tag", "channel-id"))
         enable_catchup = str(data.get("enable_catchup", "false")).lower() == "true"
         logger.info("🔄 Processing POST request for M3U generation")
     else:
+        data = {}
         unwanted_groups = parse_group_list(request.args.get("unwanted_groups", ""))
         wanted_groups = parse_group_list(request.args.get("wanted_groups", ""))
         no_stream_proxy = request.args.get("nostreamproxy", "").lower() == "true"
-        include_vod = request.args.get("include_vod", "false").lower() == "true"
         include_channel_id = request.args.get("include_channel_id", "false") == "true"
         channel_id_tag = request.args.get("channel_id_tag", "channel-id")
         enable_catchup = request.args.get("enable_catchup", "false").lower() == "true"
         logger.info("🔄 Processing GET request for M3U generation")
 
-    # For M3U generation, warn about VOD performance impact
-    if include_vod:
-        logger.warning("⚠️  M3U generation with VOD enabled - expect 2-5 minute generation time!")
+    # Parse granular content-type flags
+    include_live, include_vod, include_series = parse_content_flags(
+        data, is_post=(request.method == "POST")
+    )
+    logger.info(f"Content types — live: {include_live}, vod: {include_vod}, series: {include_series}")
+
+    if include_vod or include_series:
+        logger.warning("⚠️  M3U generation with VOD/Series enabled - expect 2-5 minute generation time!")
     else:
         logger.info("⚡ M3U generation for live content only - should be fast!")
 
@@ -170,7 +210,9 @@ def generate_m3u():
 
     # Fetch categories and channels
     categories, streams, error_json, error_code = fetch_categories_and_channels(
-        url, username, password, include_vod, for_m3u=True
+        url, username, password,
+        include_live=include_live, include_vod=include_vod, include_series=include_series,
+        for_m3u=True,
     )
     if error_json:
         return error_json, error_code, {"Content-Type": "application/json"}
@@ -192,7 +234,7 @@ def generate_m3u():
         wanted_groups=wanted_groups,
         unwanted_groups=unwanted_groups,
         no_stream_proxy=no_stream_proxy,
-        include_vod=include_vod,
+        include_series=include_series,
         include_channel_id=include_channel_id,
         channel_id_tag=channel_id_tag,
         enable_catchup=enable_catchup,
@@ -200,7 +242,7 @@ def generate_m3u():
     )
 
     # Determine filename based on content included
-    filename = "FullPlaylist.m3u" if include_vod else "LiveStream.m3u"
+    filename = "FullPlaylist.m3u" if (include_vod or include_series) else "LiveStream.m3u"
 
     # Return the M3U playlist with proper CORS headers for frontend
     headers = {
@@ -211,3 +253,116 @@ def generate_m3u():
     }
 
     return Response(m3u_playlist, mimetype="audio/x-scpls", headers=headers)
+
+
+@api_bp.route("/series", methods=["GET"])
+def list_series():
+    """Return a JSON list of available series with their category info.
+
+    Lightweight — does not fetch individual series episodes. Supports the same
+    wanted_groups / unwanted_groups filtering as /m3u (matched against the
+    series' category name).
+    """
+    url, username, password, proxy_url, error, status_code = get_required_params()
+    if error:
+        return error, status_code
+
+    wanted_groups = parse_group_list(request.args.get("wanted_groups", ""))
+    unwanted_groups = parse_group_list(request.args.get("unwanted_groups", ""))
+
+    user_data, error_json, error_code = validate_xtream_credentials(url, username, password)
+    if error_json:
+        return error_json, error_code, {"Content-Type": "application/json"}
+
+    series, category_names, error_json, error_code = fetch_series_listing(url, username, password)
+    if error_json:
+        return error_json, error_code, {"Content-Type": "application/json"}
+
+    result = []
+    for s in series:
+        category_id = s.get("category_id")
+        category_name = category_names.get(category_id, "Uncategorized")
+
+        if wanted_groups:
+            if not any(group_matches(category_name, w) for w in wanted_groups):
+                continue
+        elif unwanted_groups:
+            if any(group_matches(category_name, u) for u in unwanted_groups):
+                continue
+
+        result.append({
+            "series_id": s.get("series_id"),
+            "name": s.get("name"),
+            "category_id": category_id,
+            "category_name": category_name,
+        })
+
+    logger.info(f"Returning {len(result)} series (filtered from {len(series)} total)")
+    return jsonify(result)
+
+
+@api_bp.route("/episodes", methods=["GET", "POST"])
+def get_episodes():
+    """Return an M3U playlist of episodes for a specific list of series IDs.
+
+    Use ?series=ID1,ID2,ID3 (or POST body) to pick which series. Avoids the
+    "fetch episodes for every series" slowness of /m3u with include_series=true.
+    """
+    url, username, password, proxy_url, error, status_code = get_required_params()
+    if error:
+        return error, status_code
+
+    if request.method == "POST":
+        data = request.get_json() or {}
+        series_param = str(data.get("series", ""))
+        no_stream_proxy = str(data.get("nostreamproxy", "")).lower() == "true"
+    else:
+        series_param = request.args.get("series", "")
+        no_stream_proxy = request.args.get("nostreamproxy", "").lower() == "true"
+
+    series_ids = [s.strip() for s in series_param.split(",") if s.strip()]
+    if not series_ids:
+        return (
+            jsonify({"error": "Missing Parameter", "details": "series parameter is required (comma-separated IDs)"}),
+            400,
+        )
+
+    logger.info(f"📺 /episodes requested for {len(series_ids)} series IDs")
+
+    user_data, error_json, error_code = validate_xtream_credentials(url, username, password)
+    if error_json:
+        return error_json, error_code, {"Content-Type": "application/json"}
+
+    # Fetch series listing to map series_id -> name + category for group-title
+    series, category_names, error_json, error_code = fetch_series_listing(url, username, password)
+    if error_json:
+        return error_json, error_code, {"Content-Type": "application/json"}
+
+    series_meta = {
+        str(s.get("series_id")): {"name": s.get("name"), "category_id": s.get("category_id")}
+        for s in series
+    }
+
+    username_real = user_data["user_info"]["username"]
+    password_real = user_data["user_info"]["password"]
+    server_url = f"http://{user_data['server_info']['url']}:{user_data['server_info']['port']}"
+
+    m3u = generate_episodes_playlist(
+        url=url,
+        username=username_real,
+        password=password_real,
+        server_url=server_url,
+        series_ids=series_ids,
+        series_meta=series_meta,
+        category_names=category_names,
+        no_stream_proxy=no_stream_proxy,
+        proxy_url=proxy_url,
+    )
+
+    headers = {
+        "Content-Disposition": "attachment; filename=Episodes.m3u",
+        "Access-Control-Allow-Origin": "*",
+        "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
+        "Access-Control-Allow-Headers": "Content-Type",
+    }
+    return Response(m3u, mimetype="audio/x-scpls", headers=headers)

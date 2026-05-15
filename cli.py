@@ -25,12 +25,16 @@ import logging
 import os
 import sys
 
+import json as _json
+
 from app.services import (
     fetch_categories_and_channels,
+    fetch_series_listing,
+    generate_episodes_playlist,
     generate_m3u_playlist,
     validate_xtream_credentials,
 )
-from app.utils import parse_group_list, setup_custom_dns
+from app.utils import group_matches, parse_group_list, setup_custom_dns
 
 
 def main():
@@ -55,9 +59,17 @@ def main():
     parser.add_argument("--unwanted-groups", default="",
                         help="Comma-separated groups to exclude")
 
-    # Content options
+    # Content options (per-type, independent flags)
+    parser.add_argument("--include-live", action=argparse.BooleanOptionalAction, default=True,
+                        help="Include live channels (default: yes; pass --no-include-live to omit)")
     parser.add_argument("--include-vod", action="store_true",
-                        help="Include movies and series (slower, 2-5min)")
+                        help="Include movies (slower, adds 1-2min)")
+    parser.add_argument("--include-series", action="store_true",
+                        help="Include TV series (slowest, adds episode fetches)")
+    parser.add_argument("--series", default="",
+                        help="Comma-separated series IDs to restrict to (composes with --include-series)")
+    parser.add_argument("--list-series", action="store_true",
+                        help="Print available series as JSON (id, name, category) and exit")
     parser.add_argument("--enable-catchup", action="store_true",
                         help="Emit catchup/timeshift tags for archive-enabled channels")
     parser.add_argument("--include-channel-id", action="store_true",
@@ -103,33 +115,92 @@ def main():
         print(f"Authentication failed: {error_json}", file=sys.stderr)
         sys.exit(1)
 
-    categories, streams, error_json, error_code = fetch_categories_and_channels(
-        args.url, args.username, args.password, args.include_vod, for_m3u=True
-    )
-    if error_json:
-        print(f"Failed to fetch data: {error_json}", file=sys.stderr)
-        sys.exit(1)
-
     server_url = (
         f"http://{user_data['server_info']['url']}:{user_data['server_info']['port']}"
     )
+    username_real = user_data["user_info"]["username"]
+    password_real = user_data["user_info"]["password"]
 
-    m3u = generate_m3u_playlist(
-        url=args.url,
-        username=user_data["user_info"]["username"],
-        password=user_data["user_info"]["password"],
-        server_url=server_url,
-        categories=categories,
-        streams=streams,
-        wanted_groups=parse_group_list(args.wanted_groups),
-        unwanted_groups=parse_group_list(args.unwanted_groups),
-        no_stream_proxy=args.no_stream_proxy,
-        include_vod=args.include_vod,
-        include_channel_id=args.include_channel_id,
-        channel_id_tag=args.channel_id_tag,
-        enable_catchup=args.enable_catchup,
-        proxy_url=args.proxy_url,
-    )
+    wanted_groups = parse_group_list(args.wanted_groups)
+    unwanted_groups = parse_group_list(args.unwanted_groups)
+
+    # --list-series: print JSON catalog of series and exit
+    if args.list_series:
+        series, category_names, error_json, error_code = fetch_series_listing(
+            args.url, args.username, args.password
+        )
+        if error_json:
+            print(f"Failed to fetch series listing: {error_json}", file=sys.stderr)
+            sys.exit(1)
+        result = []
+        for s in series:
+            category_id = s.get("category_id")
+            category_name = category_names.get(category_id, "Uncategorized")
+            if wanted_groups and not any(group_matches(category_name, w) for w in wanted_groups):
+                continue
+            if unwanted_groups and any(group_matches(category_name, u) for u in unwanted_groups):
+                continue
+            result.append({
+                "series_id": s.get("series_id"),
+                "name": s.get("name"),
+                "category_id": category_id,
+                "category_name": category_name,
+            })
+        sys.stdout.write(_json.dumps(result, indent=2, ensure_ascii=False) + "\n")
+        return
+
+    # --series ID1,ID2: fetch episodes for those specific series only
+    series_ids = [s.strip() for s in args.series.split(",") if s.strip()]
+    if series_ids:
+        listing, category_names, error_json, error_code = fetch_series_listing(
+            args.url, args.username, args.password
+        )
+        if error_json:
+            print(f"Failed to fetch series listing: {error_json}", file=sys.stderr)
+            sys.exit(1)
+        series_meta = {
+            str(s.get("series_id")): {"name": s.get("name"), "category_id": s.get("category_id")}
+            for s in listing
+        }
+        m3u = generate_episodes_playlist(
+            url=args.url,
+            username=username_real,
+            password=password_real,
+            server_url=server_url,
+            series_ids=series_ids,
+            series_meta=series_meta,
+            category_names=category_names,
+            no_stream_proxy=args.no_stream_proxy,
+            proxy_url=args.proxy_url,
+        )
+    else:
+        categories, streams, error_json, error_code = fetch_categories_and_channels(
+            args.url, args.username, args.password,
+            include_live=args.include_live,
+            include_vod=args.include_vod,
+            include_series=args.include_series,
+            for_m3u=True,
+        )
+        if error_json:
+            print(f"Failed to fetch data: {error_json}", file=sys.stderr)
+            sys.exit(1)
+
+        m3u = generate_m3u_playlist(
+            url=args.url,
+            username=username_real,
+            password=password_real,
+            server_url=server_url,
+            categories=categories,
+            streams=streams,
+            wanted_groups=wanted_groups,
+            unwanted_groups=unwanted_groups,
+            no_stream_proxy=args.no_stream_proxy,
+            include_series=args.include_series,
+            include_channel_id=args.include_channel_id,
+            channel_id_tag=args.channel_id_tag,
+            enable_catchup=args.enable_catchup,
+            proxy_url=args.proxy_url,
+        )
 
     if args.output == "-":
         sys.stdout.write(m3u)

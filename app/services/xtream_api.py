@@ -114,48 +114,58 @@ def fetch_series_episodes(url, username, password, series_id):
         return series_id, None
 
 
-def fetch_categories_and_channels(url, username, password, include_vod=False, for_m3u=False):
+def fetch_categories_and_channels(
+    url, username, password,
+    include_live=True, include_vod=False, include_series=False,
+    for_m3u=False,
+):
     """Fetch categories and channels from the Xtream API using concurrent requests
 
-    Set for_m3u=True to fetch the heavy VOD/series stream lists needed for
-    M3U generation. The /categories endpoint leaves this off so the UI loads quickly.
+    Each content type can be toggled independently. Set for_m3u=True to fetch
+    the heavy VOD/series stream lists needed for M3U generation; the /categories
+    endpoint leaves this off so the UI loads quickly.
     """
     all_categories = []
     all_streams = []
 
     try:
         # Prepare all API endpoints to fetch concurrently
-        api_endpoints = [
-            (f"{url}/player_api.php?username={username}&password={password}&action=get_live_categories",
-             "live_categories", 60),
-            (f"{url}/player_api.php?username={username}&password={password}&action=get_live_streams",
-             "live_streams", 180),
-        ]
+        api_endpoints = []
 
-        # Add VOD endpoints if requested (WARNING: This will be much slower!)
-        if include_vod:
-            logger.warning("⚠️  Including VOD content - this will take significantly longer!")
-            logger.info("💡 For faster loading, use the API without include_vod=true")
-
-            # Only add the most essential VOD endpoints - skip the massive streams for categories-only requests
+        if include_live:
             api_endpoints.extend([
-                (f"{url}/player_api.php?username={username}&password={password}&action=get_vod_categories",
-                 "vod_categories", 60),
-                (f"{url}/player_api.php?username={username}&password={password}&action=get_series_categories",
-                 "series_categories", 60),
+                (f"{url}/player_api.php?username={username}&password={password}&action=get_live_categories",
+                 "live_categories", 60),
+                (f"{url}/player_api.php?username={username}&password={password}&action=get_live_streams",
+                 "live_streams", 180),
             ])
 
-            # Only fetch the massive stream lists if explicitly needed for M3U generation
+        if include_vod or include_series:
+            logger.warning("⚠️  Including VOD/Series content - this will take significantly longer!")
+
+        if include_vod:
+            api_endpoints.append(
+                (f"{url}/player_api.php?username={username}&password={password}&action=get_vod_categories",
+                 "vod_categories", 60),
+            )
             if for_m3u:
-                logger.warning("🐌 Fetching massive VOD/Series streams for M3U generation...")
-                api_endpoints.extend([
+                logger.warning("🐌 Fetching massive VOD streams for M3U generation...")
+                api_endpoints.append(
                     (f"{url}/player_api.php?username={username}&password={password}&action=get_vod_streams",
                      "vod_streams", 240),
+                )
+
+        if include_series:
+            api_endpoints.append(
+                (f"{url}/player_api.php?username={username}&password={password}&action=get_series_categories",
+                 "series_categories", 60),
+            )
+            if for_m3u:
+                logger.warning("🐌 Fetching massive series list for M3U generation...")
+                api_endpoints.append(
                     (f"{url}/player_api.php?username={username}&password={password}&action=get_series",
                      "series", 240),
-                ])
-            else:
-                logger.info("⚡ Skipping massive VOD streams for categories-only request")
+                )
 
         # Fetch all endpoints concurrently using ThreadPoolExecutor
         logger.info(f"Starting concurrent fetch of {len(api_endpoints)} API endpoints...")
@@ -173,49 +183,41 @@ def fetch_categories_and_channels(url, username, password, include_vod=False, fo
 
         logger.info("All concurrent API calls completed!")
 
-        # Process live categories and streams (required)
-        live_categories = results.get("live_categories")
-        live_streams = results.get("live_streams")
+        # Process live content if requested
+        if include_live:
+            live_categories = results.get("live_categories")
+            live_streams = results.get("live_streams")
 
-        if isinstance(live_categories, tuple):  # Error response
-            return None, None, live_categories[0], live_categories[1]
-        if isinstance(live_streams, tuple):  # Error response
-            return None, None, live_streams[0], live_streams[1]
+            if isinstance(live_categories, tuple):  # Error response
+                return None, None, live_categories[0], live_categories[1]
+            if isinstance(live_streams, tuple):  # Error response
+                return None, None, live_streams[0], live_streams[1]
 
-        if not isinstance(live_categories, list) or not isinstance(live_streams, list):
-            return (
-                None,
-                None,
-                json.dumps(
-                    {
-                        "error": "Invalid Data Format",
-                        "details": "Live categories or streams data is not in the expected format",
-                    }
-                ),
-                500,
-            )
+            if not isinstance(live_categories, list) or not isinstance(live_streams, list):
+                return (
+                    None,
+                    None,
+                    json.dumps(
+                        {
+                            "error": "Invalid Data Format",
+                            "details": "Live categories or streams data is not in the expected format",
+                        }
+                    ),
+                    500,
+                )
 
-        # Optimized data processing - batch operations for massive datasets
-        logger.info("Processing live content...")
-
-        # Batch set content_type for live content
-        if live_categories:
+            logger.info("Processing live content...")
             for category in live_categories:
                 category["content_type"] = "live"
             all_categories.extend(live_categories)
-
-        if live_streams:
             for stream in live_streams:
                 stream["content_type"] = "live"
             all_streams.extend(live_streams)
+            logger.info(f"✅ Added {len(live_categories)} live categories and {len(live_streams)} live streams")
 
-        logger.info(f"✅ Added {len(live_categories)} live categories and {len(live_streams)} live streams")
-
-        # Process VOD content if requested and available
+        # Process VOD (movies) content if requested
         if include_vod:
-            logger.info("Processing VOD content...")
-
-            # Process VOD categories
+            logger.info("Processing VOD (movies) content...")
             vod_categories = results.get("vod_categories")
             if isinstance(vod_categories, list) and vod_categories:
                 for category in vod_categories:
@@ -223,20 +225,9 @@ def fetch_categories_and_channels(url, username, password, include_vod=False, fo
                 all_categories.extend(vod_categories)
                 logger.info(f"✅ Added {len(vod_categories)} VOD categories")
 
-            # Process series categories first (lightweight)
-            series_categories = results.get("series_categories")
-            if isinstance(series_categories, list) and series_categories:
-                for category in series_categories:
-                    category["content_type"] = "series"
-                all_categories.extend(series_categories)
-                logger.info(f"✅ Added {len(series_categories)} series categories")
-
-            # Only process massive stream lists if they were actually fetched
             vod_streams = results.get("vod_streams")
             if isinstance(vod_streams, list) and vod_streams:
                 logger.info(f"🔥 Processing {len(vod_streams)} VOD streams (this is the slow part)...")
-
-                # Batch process for better performance
                 batch_size = 5000
                 for i in range(0, len(vod_streams), batch_size):
                     batch = vod_streams[i:i + batch_size]
@@ -244,16 +235,22 @@ def fetch_categories_and_channels(url, username, password, include_vod=False, fo
                         stream["content_type"] = "vod"
                     if i + batch_size < len(vod_streams):
                         logger.info(f"  Processed {i + batch_size}/{len(vod_streams)} VOD streams...")
-
                 all_streams.extend(vod_streams)
                 logger.info(f"✅ Added {len(vod_streams)} VOD streams")
 
-            # Process series (this can also be huge!)
+        # Process series content if requested
+        if include_series:
+            logger.info("Processing series content...")
+            series_categories = results.get("series_categories")
+            if isinstance(series_categories, list) and series_categories:
+                for category in series_categories:
+                    category["content_type"] = "series"
+                all_categories.extend(series_categories)
+                logger.info(f"✅ Added {len(series_categories)} series categories")
+
             series = results.get("series")
             if isinstance(series, list) and series:
                 logger.info(f"🔥 Processing {len(series)} series (this is also slow)...")
-
-                # Batch process for better performance
                 batch_size = 5000
                 for i in range(0, len(series), batch_size):
                     batch = series[i:i + batch_size]
@@ -261,7 +258,6 @@ def fetch_categories_and_channels(url, username, password, include_vod=False, fo
                         show["content_type"] = "series"
                     if i + batch_size < len(series):
                         logger.info(f"  Processed {i + batch_size}/{len(series)} series...")
-
                 all_streams.extend(series)
                 logger.info(f"✅ Added {len(series)} series")
 
@@ -281,3 +277,51 @@ def fetch_categories_and_channels(url, username, password, include_vod=False, fo
 
     logger.info(f"🚀 CONCURRENT FETCH COMPLETE: {len(all_categories)} total categories and {len(all_streams)} total streams")
     return all_categories, all_streams, None, None
+
+
+def fetch_series_listing(url, username, password):
+    """Fetch the series catalog (category map + series list) without episode data.
+
+    Returns (series_list, category_names_dict, error_json, error_code).
+    Used by the /series and /episodes endpoints.
+    """
+    endpoints = [
+        (f"{url}/player_api.php?username={username}&password={password}&action=get_series_categories",
+         "series_categories", 60),
+        (f"{url}/player_api.php?username={username}&password={password}&action=get_series",
+         "series", 240),
+    ]
+
+    results = {}
+    try:
+        with ThreadPoolExecutor(max_workers=2) as executor:
+            future_to_name = {executor.submit(fetch_api_endpoint, ep): ep[1] for ep in endpoints}
+            for future in as_completed(future_to_name):
+                name, data = future.result()
+                results[name] = data
+    except Exception as e:
+        logger.error(f"Failed to fetch series listing: {e}")
+        return None, None, json.dumps({"error": "API Fetch Error", "details": str(e)}), 500
+
+    series_categories = results.get("series_categories")
+    series = results.get("series")
+
+    if isinstance(series_categories, tuple):
+        return None, None, series_categories[0], series_categories[1]
+    if isinstance(series, tuple):
+        return None, None, series[0], series[1]
+
+    if not isinstance(series_categories, list) or not isinstance(series, list):
+        return (
+            None,
+            None,
+            json.dumps({
+                "error": "Invalid Data Format",
+                "details": "Series categories or series list not in expected format",
+            }),
+            500,
+        )
+
+    category_names = {cat["category_id"]: cat["category_name"] for cat in series_categories}
+    logger.info(f"✅ Fetched {len(series_categories)} series categories and {len(series)} series")
+    return series, category_names, None, None

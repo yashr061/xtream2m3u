@@ -1,9 +1,10 @@
 """Services package"""
-from .m3u_generator import generate_m3u_playlist
+from .m3u_generator import generate_episodes_playlist, generate_m3u_playlist
 from .xtream_api import (
     fetch_api_data,
     fetch_categories_and_channels,
     fetch_series_episodes,
+    fetch_series_listing,
     validate_xtream_credentials,
 )
 
@@ -12,5 +13,7 @@ __all__ = [
     'validate_xtream_credentials',
     'fetch_categories_and_channels',
     'fetch_series_episodes',
-    'generate_m3u_playlist'
+    'fetch_series_listing',
+    'generate_m3u_playlist',
+    'generate_episodes_playlist',
 ]

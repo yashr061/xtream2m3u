@@ -19,7 +19,7 @@ def generate_m3u_playlist(
     wanted_groups=None,
     unwanted_groups=None,
     no_stream_proxy=False,
-    include_vod=False,
+    include_series=False,
     include_channel_id=False,
     channel_id_tag="channel-id",
     enable_catchup=False,
@@ -38,7 +38,7 @@ def generate_m3u_playlist(
         wanted_groups: List of group patterns to include (optional)
         unwanted_groups: List of group patterns to exclude (optional)
         no_stream_proxy: Whether to disable stream proxying
-        include_vod: Whether VOD content is included
+        include_series: Whether series content is present in `streams` (gates per-series episode fetching)
         include_channel_id: Whether to include channel IDs
         channel_id_tag: Tag name for channel IDs
         enable_catchup: Whether to emit catchup/timeshift tags for archive-enabled channels
@@ -76,7 +76,7 @@ def generate_m3u_playlist(
 
     # Filter series to fetch episodes for (optimization to avoid fetching episodes for excluded series)
     series_episodes_map = {}
-    if include_vod:
+    if include_series:
         series_streams = [s for s in streams if s.get("content_type") == "series"]
         if series_streams:
             logger.info(
@@ -344,3 +344,106 @@ def generate_m3u_playlist(
         logger.info(f"📼 Emitted catchup tags for {catchup_count} channels (proxy bypassed for those)")
 
     return m3u_playlist
+
+
+def generate_episodes_playlist(
+    url,
+    username,
+    password,
+    server_url,
+    series_ids,
+    series_meta,
+    category_names,
+    no_stream_proxy=False,
+    proxy_url=None,
+):
+    """Generate an M3U playlist of episodes for a specific set of series IDs.
+
+    Backs the /episodes API endpoint. Fetches episode lists concurrently for the
+    requested series only, so it stays fast even when the provider catalog is huge.
+
+    Args:
+        series_ids: list of series IDs to fetch episodes for
+        series_meta: dict mapping series_id -> {"name": ..., "category_id": ...}
+        category_names: dict mapping category_id -> category_name
+    """
+    if not series_ids:
+        return "#EXTM3U\n"
+
+    logger.info(f"Fetching episodes for {len(series_ids)} series concurrently...")
+    episodes_map = {}
+    with ThreadPoolExecutor(max_workers=5) as executor:
+        futures = {
+            executor.submit(fetch_series_episodes, url, username, password, sid): sid
+            for sid in series_ids
+        }
+        for future in as_completed(futures):
+            sid, episodes = future.result()
+            if episodes:
+                episodes_map[sid] = episodes
+
+    m3u = "#EXTM3U\n"
+    episode_count = 0
+
+    for sid in series_ids:
+        # Series IDs can come as ints or strings; normalize for lookup
+        meta = series_meta.get(str(sid)) or series_meta.get(sid) or {}
+        series_name = meta.get("name", f"Series {sid}")
+        category_id = meta.get("category_id")
+        category_name = category_names.get(category_id, "Uncategorized")
+        group_title = f"Series - {category_name}"
+
+        episodes_data = episodes_map.get(sid)
+        if not episodes_data:
+            logger.warning(f"No episodes found for series {sid} ({series_name})")
+            continue
+
+        # Same defensive shape handling as the main generator
+        if isinstance(episodes_data, dict):
+            try:
+                sorted_seasons = sorted(
+                    episodes_data.items(),
+                    key=lambda x: int(x[0]) if str(x[0]).isdigit() else 999,
+                )
+            except Exception:
+                sorted_seasons = list(episodes_data.items())
+        elif isinstance(episodes_data, list):
+            sorted_seasons = []
+            for idx, item in enumerate(episodes_data):
+                if isinstance(item, list):
+                    sorted_seasons.append((idx + 1, item))
+                elif isinstance(item, dict):
+                    sorted_seasons = [(1, episodes_data)]
+                    break
+        else:
+            logger.warning(f"Unexpected episodes shape for series {sid}: {type(episodes_data)}")
+            continue
+
+        for season_num, episodes in sorted_seasons:
+            if not isinstance(episodes, list):
+                continue
+            for episode in episodes:
+                if not isinstance(episode, dict):
+                    continue
+
+                episode_id = episode.get("id")
+                episode_num = episode.get("episode_num")
+                episode_title = episode.get("title", "")
+                container_ext = episode.get("container_extension", "mp4")
+
+                full_title = f"{series_name} - S{str(season_num).zfill(2)}E{str(episode_num).zfill(2)} - {episode_title}"
+                ep_url = f"{server_url}/series/{username}/{password}/{episode_id}.{container_ext}"
+
+                if not no_stream_proxy and proxy_url:
+                    ep_url = f"{proxy_url}/stream-proxy/{encode_url(ep_url)}"
+
+                tags = [
+                    f'tvg-name="{full_title}"',
+                    f'group-title="{group_title}"',
+                ]
+                m3u += f'#EXTINF:0 {" ".join(tags)},{full_title}\n'
+                m3u += f"{ep_url}\n"
+                episode_count += 1
+
+    logger.info(f"✅ Episodes playlist complete: {episode_count} episodes across {len(series_ids)} series")
+    return m3u

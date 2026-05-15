@@ -10,7 +10,9 @@ let state = {
         url: '',
         username: '',
         password: '',
-        includeVod: false
+        includeLive: true,
+        includeVod: false,
+        includeSeries: false
     }
 };
 
@@ -78,15 +80,22 @@ async function loadCategories() {
     const url = document.getElementById('url').value.trim();
     const username = document.getElementById('username').value.trim();
     const password = document.getElementById('password').value.trim();
+    const includeLive = document.getElementById('includeLive').checked;
     const includeVod = document.getElementById('includeVod').checked;
+    const includeSeries = document.getElementById('includeSeries').checked;
 
     if (!url || !username || !password) {
         showError('Please fill in all required fields');
         return;
     }
 
+    if (!includeLive && !includeVod && !includeSeries) {
+        showError('Pick at least one content type');
+        return;
+    }
+
     // Update state
-    state.credentials = { url, username, password, includeVod };
+    state.credentials = { url, username, password, includeLive, includeVod, includeSeries };
 
     showLoading('Connecting to IPTV service...');
     document.getElementById('loadBtn').disabled = true;
@@ -94,7 +103,9 @@ async function loadCategories() {
     try {
         const params = new URLSearchParams({
             url, username, password,
-            include_vod: includeVod
+            include_live: includeLive,
+            include_vod: includeVod,
+            include_series: includeSeries
         });
 
         const response = await fetch(`/categories?${params}`);
@@ -367,10 +378,10 @@ function updateApiUrl() {
         password: state.credentials.password
     });
 
-    if (state.credentials.includeVod) {
-        // Backend expects 'include_vod'
-        params.append('include_vod', 'true');
-    }
+    // Only emit non-default content-type flags to keep URLs short
+    if (!state.credentials.includeLive) params.append('include_live', 'false');
+    if (state.credentials.includeVod) params.append('include_vod', 'true');
+    if (state.credentials.includeSeries) params.append('include_series', 'true');
 
     // Smart filtering: Omit filter params if they result in "All Content"
     const categories = Array.from(state.selectedCategories);
@@ -427,7 +438,9 @@ function updateApiUrl() {
         elements.generatedCliCommand.textContent = buildCliCommand({
             wantedGroups: params.get('wanted_groups'),
             unwantedGroups: params.get('unwanted_groups'),
-            includeVod: params.get('include_vod') === 'true',
+            includeLive: state.credentials.includeLive,
+            includeVod: state.credentials.includeVod,
+            includeSeries: state.credentials.includeSeries,
             noStreamProxy,
             includeChannelId,
             enableCatchup,
@@ -447,7 +460,9 @@ function buildCliCommand(opts) {
     const parts = ['python', 'cli.py'];
     if (opts.wantedGroups) parts.push('--wanted-groups', sh(opts.wantedGroups));
     if (opts.unwantedGroups) parts.push('--unwanted-groups', sh(opts.unwantedGroups));
+    if (opts.includeLive === false) parts.push('--no-include-live');
     if (opts.includeVod) parts.push('--include-vod');
+    if (opts.includeSeries) parts.push('--include-series');
     if (opts.enableCatchup) parts.push('--enable-catchup');
     if (opts.includeChannelId) parts.push('--include-channel-id');
     if (opts.channelIdTag && opts.channelIdTag !== 'channel-id') {
@@ -497,7 +512,7 @@ function showConfirmation() {
         return cat && cat.content_type === 'series';
     });
 
-    if (state.credentials.includeVod && (state.filterMode === 'include' && hasSeriesSelected)) {
+    if (state.credentials.includeSeries && (state.filterMode === 'include' && hasSeriesSelected)) {
          seriesWarning = `
             <div class="alert alert-warning" style="margin-top: 1rem; font-size: 0.85rem; align-items: flex-start;">
                 <span style="font-size: 1.2rem; line-height: 1;">⚠️</span>
@@ -517,7 +532,11 @@ function showConfirmation() {
         </div>
         <div class="summary-row">
             <span class="summary-label">Content</span>
-            <span class="summary-value">${state.credentials.includeVod ? 'Live TV + VOD' : 'Live TV Only'}</span>
+            <span class="summary-value">${[
+                state.credentials.includeLive && 'Live',
+                state.credentials.includeVod && 'Movies',
+                state.credentials.includeSeries && 'Series',
+            ].filter(Boolean).join(' + ') || 'Nothing selected'}</span>
         </div>
         <div class="summary-row">
             <span class="summary-label">Filter Config</span>
@@ -536,13 +555,14 @@ async function confirmGeneration() {
     showLoading('Generating Playlist...');
 
     const requestData = {
-        ...state.credentials,
+        url: state.credentials.url,
+        username: state.credentials.username,
+        password: state.credentials.password,
         nostreamproxy: true,
-        include_vod: state.credentials.includeVod
+        include_live: state.credentials.includeLive,
+        include_vod: state.credentials.includeVod,
+        include_series: state.credentials.includeSeries
     };
-
-    // Remove the original camelCase property to avoid confusion/duplication
-    delete requestData.includeVod;
 
     const categories = Array.from(state.selectedCategories);
     if (categories.length > 0) {
@@ -575,7 +595,8 @@ async function confirmGeneration() {
         const url = window.URL.createObjectURL(blob);
 
         elements.downloadLink.href = url;
-        elements.downloadLink.download = state.credentials.includeVod ? 'Full_Playlist.m3u' : 'Live_Playlist.m3u';
+        const hasExtraContent = state.credentials.includeVod || state.credentials.includeSeries;
+        elements.downloadLink.download = hasExtraContent ? 'Full_Playlist.m3u' : 'Live_Playlist.m3u';
 
         showStep(3);
 
@@ -593,7 +614,9 @@ function startOver() {
     document.getElementById('url').value = '';
     document.getElementById('username').value = '';
     document.getElementById('password').value = '';
+    document.getElementById('includeLive').checked = true;
     document.getElementById('includeVod').checked = false;
+    document.getElementById('includeSeries').checked = false;
 
     // Clear state
     state.categories = [];

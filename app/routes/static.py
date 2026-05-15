@@ -33,7 +33,7 @@ def serve_assets(filename):
 def serve_static_files(filename):
     """Serve static files from the frontend directory"""
     # Don't serve API routes through static file handler
-    api_routes = ["m3u", "xmltv", "categories", "image-proxy", "stream-proxy", "assets"]
+    api_routes = ["m3u", "xmltv", "categories", "series", "episodes", "image-proxy", "stream-proxy", "assets"]
     if filename.split("/")[0] in api_routes:
         return "Not found", 404
 
