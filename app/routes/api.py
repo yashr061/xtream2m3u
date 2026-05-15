@@ -133,6 +133,7 @@ def generate_m3u():
         include_vod = str(data.get("include_vod", "false")).lower() == "true"
         include_channel_id = str(data.get("include_channel_id", "false")).lower() == "true"
         channel_id_tag = str(data.get("channel_id_tag", "channel-id"))
+        enable_catchup = str(data.get("enable_catchup", "false")).lower() == "true"
         logger.info("🔄 Processing POST request for M3U generation")
     else:
         unwanted_groups = parse_group_list(request.args.get("unwanted_groups", ""))
@@ -141,6 +142,7 @@ def generate_m3u():
         include_vod = request.args.get("include_vod", "false").lower() == "true"
         include_channel_id = request.args.get("include_channel_id", "false") == "true"
         channel_id_tag = request.args.get("channel_id_tag", "channel-id")
+        enable_catchup = request.args.get("enable_catchup", "false").lower() == "true"
         logger.info("🔄 Processing GET request for M3U generation")
 
     # For M3U generation, warn about VOD performance impact
@@ -191,6 +193,7 @@ def generate_m3u():
         include_vod=include_vod,
         include_channel_id=include_channel_id,
         channel_id_tag=channel_id_tag,
+        enable_catchup=enable_catchup,
         proxy_url=proxy_url
     )
 

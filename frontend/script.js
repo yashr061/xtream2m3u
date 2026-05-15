@@ -346,6 +346,7 @@ function updateApiUrl() {
     const apiType = document.querySelector('input[name="apiType"]:checked').value;
     const noStreamProxy = document.getElementById('apiNoStreamProxy').checked;
     const includeChannelId = document.getElementById('apiIncludeChannelId').checked;
+    const enableCatchup = document.getElementById('apiEnableCatchup').checked;
     const proxyUrl = document.getElementById('apiProxyUrl').value.trim();
     const channelIdTag = document.getElementById('apiChannelIdTag').value.trim();
 
@@ -415,6 +416,7 @@ function updateApiUrl() {
     if (apiType === 'm3u') {
         if (noStreamProxy) params.append('nostreamproxy', 'true');
         if (includeChannelId) params.append('include_channel_id', 'true');
+        if (enableCatchup) params.append('enable_catchup', 'true');
         if (proxyUrl) params.append('proxy_url', proxyUrl);
         if (channelIdTag) params.append('channel_id_tag', channelIdTag);
 

@@ -46,6 +46,7 @@ Many IPTV providers use the Xtream API, which isn't directly compatible with all
 *   **Custom Playlists:** Filter channels by including or excluding specific groups.
 *   **VOD Support:** Optionally include Movies and Series in your playlist.
 *   **Stream Proxying:** built-in proxy to handle CORS issues or hide upstream URLs.
+*   **Catchup Support:** Optional emission of `catchup` tags for channels with `tv_archive` enabled, allowing timeshift/recording playback in compatible players (Kodi IPTV Simple Client, TiviMate, etc.).
 *   **Custom DNS:** Uses reliable DNS resolvers (Cloudflare, Google) to ensure connection stability.
 *   **XMLTV EPG:** Generates a compatible XMLTV guide for your playlist.
 *   **Docker Ready:** Simple deployment with Docker and Docker Compose.
@@ -128,6 +129,7 @@ For advanced users or automation, you can use the API endpoints directly.
 | `proxy_url` | string | No | Custom base URL for proxied streams |
 | `include_channel_id` | boolean | No | Set `true` to include `epg_channel_id` tag |
 | `channel_id_tag` | string | No | Custom tag name for channel ID (default: `channel-id`) |
+| `enable_catchup` | boolean | No | Set `true` to emit catchup/timeshift tags for archive-enabled channels. **Note:** catchup channels bypass the stream proxy (URLs stay raw) so players can construct timeshift URLs. |
 
 **Wildcard Support:** `unwanted_groups` and `wanted_groups` support `*` (wildcard) and `?` (single char).
 *   Example: `*Sports*` matches "Sky Sports", "BeIN Sports", etc.

@@ -22,6 +22,7 @@ def generate_m3u_playlist(
     include_vod=False,
     include_channel_id=False,
     channel_id_tag="channel-id",
+    enable_catchup=False,
     proxy_url=None,
 ):
     """
@@ -40,6 +41,7 @@ def generate_m3u_playlist(
         include_vod: Whether VOD content is included
         include_channel_id: Whether to include channel IDs
         channel_id_tag: Tag name for channel IDs
+        enable_catchup: Whether to emit catchup/timeshift tags for archive-enabled channels
         proxy_url: Proxy URL for images and streams
 
     Returns:
@@ -58,6 +60,7 @@ def generate_m3u_playlist(
     # Track included groups
     included_groups = set()
     processed_streams = 0
+    catchup_count = 0
     total_streams = len(streams)
 
     # Pre-compile filter patterns for massive filter lists (performance optimization)
@@ -142,6 +145,7 @@ def generate_m3u_playlist(
 
     for stream in streams:
         content_type = stream.get("content_type", "live")
+        skip_proxy_for_stream = False
 
         # Get raw category name
         category_name = category_names.get(stream.get("category_id"), "Uncategorized")
@@ -215,6 +219,20 @@ def generate_m3u_playlist(
                 stream_url = (
                     f"{server_url}/live/{username}/{password}/{stream['stream_id']}.ts"
                 )
+
+                # Catchup (timeshift) tags for archive-enabled channels.
+                # Kodi IPTV Simple Client and similar players parse the live URL to
+                # build timeshift URLs, so the URL must stay raw (no proxy wrap).
+                if enable_catchup and str(stream.get("tv_archive", 0)) == "1":
+                    try:
+                        days = int(stream.get("tv_archive_duration", 0))
+                    except (ValueError, TypeError):
+                        days = 0
+                    if days > 0:
+                        tags.append('catchup="xtream-codes"')
+                        tags.append(f'catchup-days="{days}"')
+                        catchup_count += 1
+                        skip_proxy_for_stream = True
             elif content_type == "vod":
                 # VOD streams
                 stream_url = f"{server_url}/movie/{username}/{password}/{stream['stream_id']}.{stream.get('container_extension', 'mp4')}"
@@ -307,7 +325,7 @@ def generate_m3u_playlist(
                     )
 
             # Apply stream proxying if enabled (for non-series, or series fallback)
-            if not no_stream_proxy:
+            if not no_stream_proxy and not skip_proxy_for_stream:
                 stream_url = f"{proxy_url}/stream-proxy/{encode_url(stream_url)}"
 
             # Add stream to playlist
@@ -322,5 +340,7 @@ def generate_m3u_playlist(
     logger.info(
         f"✅ M3U generation complete! Generated playlist with {len(included_groups)} groups"
     )
+    if enable_catchup:
+        logger.info(f"📼 Emitted catchup tags for {catchup_count} channels (proxy bypassed for those)")
 
     return m3u_playlist

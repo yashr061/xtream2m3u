@@ -184,6 +184,13 @@
                                    <div class="checkbox-text"><small>Include Channel ID</small></div>
                                </label>
                            </div>
+                           <div class="checkbox-wrapper" title="Emits catchup/timeshift tags for channels with archive support. Catchup channels bypass the stream proxy so players can build timeshift URLs.">
+                               <label class="checkbox-label" style="padding: 0.5rem;">
+                                   <input type="checkbox" id="apiEnableCatchup" onchange="updateApiUrl()">
+                                   <div class="checkmark"></div>
+                                   <div class="checkbox-text"><small>Enable Catchup</small></div>
+                               </label>
+                           </div>
                        </div>
 
                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-bottom: 1rem;">
