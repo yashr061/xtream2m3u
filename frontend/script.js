@@ -32,7 +32,9 @@ const elements = {
     downloadLink: document.getElementById('finalDownloadLink'),
     searchInput: document.getElementById('categorySearch'),
     apiBuilderModal: document.getElementById('apiBuilderModal'),
-    generatedApiUrl: document.getElementById('generatedApiUrl')
+    generatedApiUrl: document.getElementById('generatedApiUrl'),
+    generatedCliCommand: document.getElementById('generatedCliCommand'),
+    cliCommandContainer: document.getElementById('cliCommandContainer')
 };
 
 // Step Navigation
@@ -421,10 +423,50 @@ function updateApiUrl() {
         if (channelIdTag) params.append('channel_id_tag', channelIdTag);
 
         elements.generatedApiUrl.textContent = `${baseUrl}/m3u?${params.toString()}`;
+        elements.cliCommandContainer.style.display = 'block';
+        elements.generatedCliCommand.textContent = buildCliCommand({
+            wantedGroups: params.get('wanted_groups'),
+            unwantedGroups: params.get('unwanted_groups'),
+            includeVod: params.get('include_vod') === 'true',
+            noStreamProxy,
+            includeChannelId,
+            enableCatchup,
+            proxyUrl,
+            channelIdTag,
+        });
     } else {
         if (proxyUrl) params.append('proxy_url', proxyUrl);
         elements.generatedApiUrl.textContent = `${baseUrl}/xmltv?${params.toString()}`;
+        elements.cliCommandContainer.style.display = 'none';
     }
+}
+
+function buildCliCommand(opts) {
+    // Shell-escape a single argument (single-quote wrap, escape embedded quotes)
+    const sh = (s) => `'${String(s).replace(/'/g, "'\\''")}'`;
+    const parts = ['python', 'cli.py'];
+    if (opts.wantedGroups) parts.push('--wanted-groups', sh(opts.wantedGroups));
+    if (opts.unwantedGroups) parts.push('--unwanted-groups', sh(opts.unwantedGroups));
+    if (opts.includeVod) parts.push('--include-vod');
+    if (opts.enableCatchup) parts.push('--enable-catchup');
+    if (opts.includeChannelId) parts.push('--include-channel-id');
+    if (opts.channelIdTag && opts.channelIdTag !== 'channel-id') {
+        parts.push('--channel-id-tag', sh(opts.channelIdTag));
+    }
+    if (opts.noStreamProxy) parts.push('--no-stream-proxy');
+    if (opts.proxyUrl) parts.push('--proxy-url', sh(opts.proxyUrl));
+    parts.push('-o', 'playlist.m3u');
+    return parts.join(' ');
+}
+
+function copyCliCommand() {
+    const cmd = elements.generatedCliCommand.textContent;
+    navigator.clipboard.writeText(cmd).then(() => {
+        const btn = document.querySelector('#cliCommandContainer .btn-copy');
+        const originalText = btn.textContent;
+        btn.textContent = '✅';
+        setTimeout(() => btn.textContent = originalText, 1500);
+    });
 }
 
 function copyApiUrl() {

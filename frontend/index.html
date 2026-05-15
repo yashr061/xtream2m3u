@@ -214,6 +214,14 @@
                     </div>
                 </div>
 
+                <div class="api-url-container" id="cliCommandContainer" style="margin-top: 1rem;">
+                    <label>CLI Command <small style="opacity: 0.7;">— set XTREAM_URL / XTREAM_USERNAME / XTREAM_PASSWORD first</small></label>
+                    <div class="url-display-box">
+                        <code id="generatedCliCommand">python cli.py ...</code>
+                        <button class="btn-copy" onclick="copyCliCommand()">📋</button>
+                    </div>
+                </div>
+
                 <div class="modal-actions" style="margin-top: 1.5rem;">
                     <button class="btn btn-secondary" onclick="closeApiBuilder()">Close</button>
                 </div>

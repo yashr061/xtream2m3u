@@ -109,6 +109,30 @@ The easiest way to use xtream2m3u is via the web interface at `http://localhost:
 ### Environment Variables
 *   `PROXY_URL`: [Optional] Set a custom base URL for proxied content (useful if running behind a reverse proxy).
 *   `PORT`: [Optional] Port to run the server on (default: 5000).
+*   `XTREAM_URL`, `XTREAM_USERNAME`, `XTREAM_PASSWORD`: [CLI only] Credentials read by `cli.py` when the matching flags aren't passed.
+
+### Command-Line Interface
+The `cli.py` script generates playlists without needing the web server running. It accepts the same filter options as the `/m3u` endpoint, reads credentials from environment variables (or flags), and writes the playlist to stdout or a file.
+
+```bash
+# Configure credentials once
+export XTREAM_URL=http://iptv.example.com:8080
+export XTREAM_USERNAME=myuser
+export XTREAM_PASSWORD=mypass
+
+# Save a filtered playlist to a file
+python cli.py --wanted-groups "Sports*,News" --enable-catchup -o playlist.m3u
+
+# Pipe to stdout (composes with shell tools)
+python cli.py --include-vod | grep "Movies"
+
+# Combine with cron for periodic refresh
+0 */6 * * * python /path/to/cli.py --wanted-groups "..." -o /var/iptv/list.m3u
+```
+
+The "API URL Builder" on the website also outputs a ready-to-paste CLI command alongside the URL, so you can configure your filter visually and copy the equivalent command.
+
+Run `python cli.py --help` for the full flag list.
 
 ## API Documentation
 

@@ -169,7 +169,9 @@ def generate_m3u():
         return error_json, error_code, {"Content-Type": "application/json"}
 
     # Fetch categories and channels
-    categories, streams, error_json, error_code = fetch_categories_and_channels(url, username, password, include_vod)
+    categories, streams, error_json, error_code = fetch_categories_and_channels(
+        url, username, password, include_vod, for_m3u=True
+    )
     if error_json:
         return error_json, error_code, {"Content-Type": "application/json"}
 

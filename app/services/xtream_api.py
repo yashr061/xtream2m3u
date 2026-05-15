@@ -7,7 +7,6 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 
 import requests
 from fake_useragent import UserAgent
-from flask import request
 
 logger = logging.getLogger(__name__)
 
@@ -115,8 +114,12 @@ def fetch_series_episodes(url, username, password, series_id):
         return series_id, None
 
 
-def fetch_categories_and_channels(url, username, password, include_vod=False):
-    """Fetch categories and channels from the Xtream API using concurrent requests"""
+def fetch_categories_and_channels(url, username, password, include_vod=False, for_m3u=False):
+    """Fetch categories and channels from the Xtream API using concurrent requests
+
+    Set for_m3u=True to fetch the heavy VOD/series stream lists needed for
+    M3U generation. The /categories endpoint leaves this off so the UI loads quickly.
+    """
     all_categories = []
     all_streams = []
 
@@ -143,8 +146,7 @@ def fetch_categories_and_channels(url, username, password, include_vod=False):
             ])
 
             # Only fetch the massive stream lists if explicitly needed for M3U generation
-            vod_for_m3u = request.endpoint == 'api.generate_m3u'
-            if vod_for_m3u:
+            if for_m3u:
                 logger.warning("🐌 Fetching massive VOD/Series streams for M3U generation...")
                 api_endpoints.extend([
                     (f"{url}/player_api.php?username={username}&password={password}&action=get_vod_streams",
