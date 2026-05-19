@@ -465,8 +465,8 @@ def generate_episodes_playlist(
 
                 tags = [
                     f'tvg-name="{full_title}"',
-                    f'tvg-logo="{logo_url}"',
                     f'group-title="{group_title}"',
+                    f'tvg-logo="{logo_url}"',
                 ]
                 m3u += f'#EXTINF:-1 {" ".join(tags)},{full_title}\n'
                 m3u += f"{ep_url}\n"
