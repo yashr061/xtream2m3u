@@ -392,6 +392,7 @@ def generate_episodes_playlist(
         category_id = meta.get("category_id")
         category_name = category_names.get(category_id, "Uncategorized")
         group_title = f"Series - {category_name}"
+        series_cover = meta.get("cover") or ""
 
         episodes_data = episodes_map.get(sid)
         if not episodes_data:
@@ -437,8 +438,22 @@ def generate_episodes_playlist(
                 if not no_stream_proxy and proxy_url:
                     ep_url = f"{proxy_url}/stream-proxy/{encode_url(ep_url)}"
 
+                # Prefer the per-episode image (often a screenshot) and fall
+                # back to the series cover so every entry still gets a logo.
+                episode_info = episode.get("info") if isinstance(episode.get("info"), dict) else {}
+                original_logo = (
+                    episode_info.get("movie_image")
+                    or episode_info.get("cover_big")
+                    or series_cover
+                )
+                if original_logo and not no_stream_proxy and proxy_url:
+                    logo_url = f"{proxy_url}/image-proxy/{encode_url(original_logo)}"
+                else:
+                    logo_url = original_logo or ""
+
                 tags = [
                     f'tvg-name="{full_title}"',
+                    f'tvg-logo="{logo_url}"',
                     f'group-title="{group_title}"',
                 ]
                 m3u += f'#EXTINF:0 {" ".join(tags)},{full_title}\n'

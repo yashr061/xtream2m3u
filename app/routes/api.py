@@ -339,7 +339,11 @@ def get_episodes():
         return error_json, error_code, {"Content-Type": "application/json"}
 
     series_meta = {
-        str(s.get("series_id")): {"name": s.get("name"), "category_id": s.get("category_id")}
+        str(s.get("series_id")): {
+            "name": s.get("name"),
+            "category_id": s.get("category_id"),
+            "cover": s.get("cover"),
+        }
         for s in series
     }
 
