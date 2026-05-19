@@ -194,10 +194,21 @@ def generate_m3u_playlist(
         if include_stream:
             included_groups.add(group_title)
 
-            tags = [
+            tags = []
+
+            # Always emit tvg-id for live channels so players like Emby don't
+            # fall back to parsing the channel id from the .ts URL (issue #25).
+            # Prefer the provider's EPG id; fall back to stream_id so there's
+            # always a stable, non-URL-derived identifier.
+            if content_type == "live":
+                tvg_id = stream.get("epg_channel_id") or stream.get("stream_id", "")
+                if tvg_id:
+                    tags.append(f'tvg-id="{tvg_id}"')
+
+            tags.extend([
                 f'tvg-name="{stream_name}"',
                 f'group-title="{group_title}"',
-            ]
+            ])
 
             # Handle logo URL - proxy only if stream proxying is enabled
             original_logo = stream.get("stream_icon", "")
@@ -207,8 +218,9 @@ def generate_m3u_playlist(
                 logo_url = original_logo
             tags.append(f'tvg-logo="{logo_url}"')
 
-            # Handle channel id if enabled
-            if include_channel_id:
+            # Legacy include_channel_id flag: adds an extra tag under a custom
+            # name. Skip if it'd duplicate the tvg-id we already emitted.
+            if include_channel_id and channel_id_tag != "tvg-id":
                 channel_id = stream.get("epg_channel_id")
                 if channel_id:
                     tags.append(f'{channel_id_tag}="{channel_id}"')
@@ -312,7 +324,7 @@ def generate_m3u_playlist(
                                 ep_stream_url = f"{proxy_url}/stream-proxy/{encode_url(ep_stream_url)}"
 
                             # Add to playlist
-                            m3u_playlist += f'#EXTINF:0 {" ".join(tags)},{full_title}\n'
+                            m3u_playlist += f'#EXTINF:-1 {" ".join(tags)},{full_title}\n'
                             m3u_playlist += f"{ep_stream_url}\n"
 
                     # Continue to next stream as we've added all episodes
@@ -329,7 +341,7 @@ def generate_m3u_playlist(
                 stream_url = f"{proxy_url}/stream-proxy/{encode_url(stream_url)}"
 
             # Add stream to playlist
-            m3u_playlist += f'#EXTINF:0 {" ".join(tags)},{stream_name}\n'
+            m3u_playlist += f'#EXTINF:-1 {" ".join(tags)},{stream_name}\n'
             m3u_playlist += f"{stream_url}\n"
 
     # Log included groups after filtering
@@ -456,7 +468,7 @@ def generate_episodes_playlist(
                     f'tvg-logo="{logo_url}"',
                     f'group-title="{group_title}"',
                 ]
-                m3u += f'#EXTINF:0 {" ".join(tags)},{full_title}\n'
+                m3u += f'#EXTINF:-1 {" ".join(tags)},{full_title}\n'
                 m3u += f"{ep_url}\n"
                 episode_count += 1
 

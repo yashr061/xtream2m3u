@@ -157,8 +157,8 @@ For advanced users or automation, you can use the API endpoints directly.
 | `include_series` | boolean | No | Set `true` to include TV series (default: `false`) |
 | `nostreamproxy` | boolean | No | Set `true` to disable stream proxying (direct links) |
 | `proxy_url` | string | No | Custom base URL for proxied streams |
-| `include_channel_id` | boolean | No | Set `true` to include `epg_channel_id` tag |
-| `channel_id_tag` | string | No | Custom tag name for channel ID (default: `channel-id`) |
+| `include_channel_id` | boolean | No | Add an extra channel-id tag (live channels already get `tvg-id` by default; this is for adding a second, custom-named tag) |
+| `channel_id_tag` | string | No | Custom tag name for the extra channel id added by `include_channel_id` (default: `channel-id`). Ignored if set to `tvg-id` since that's already emitted. |
 | `enable_catchup` | boolean | No | Set `true` to emit catchup/timeshift tags for archive-enabled channels. **Note:** catchup channels bypass the stream proxy (URLs stay raw) so players can construct timeshift URLs. |
 
 **Wildcard Support:** `unwanted_groups` and `wanted_groups` support `*` (wildcard) and `?` (single char).
