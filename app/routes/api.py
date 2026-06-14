@@ -169,6 +169,7 @@ def generate_m3u():
         include_channel_id = str(data.get("include_channel_id", "false")).lower() == "true"
         channel_id_tag = str(data.get("channel_id_tag", "channel-id"))
         enable_catchup = str(data.get("enable_catchup", "false")).lower() == "true"
+        no_tvg_id = str(data.get("no_tvg_id", "false")).lower() == "true"
         logger.info("🔄 Processing POST request for M3U generation")
     else:
         data = {}
@@ -178,6 +179,7 @@ def generate_m3u():
         include_channel_id = request.args.get("include_channel_id", "false") == "true"
         channel_id_tag = request.args.get("channel_id_tag", "channel-id")
         enable_catchup = request.args.get("enable_catchup", "false").lower() == "true"
+        no_tvg_id = request.args.get("no_tvg_id", "false").lower() == "true"
         logger.info("🔄 Processing GET request for M3U generation")
 
     # Parse granular content-type flags
@@ -238,6 +240,7 @@ def generate_m3u():
         include_channel_id=include_channel_id,
         channel_id_tag=channel_id_tag,
         enable_catchup=enable_catchup,
+        include_tvg_id=not no_tvg_id,
         proxy_url=proxy_url
     )
 

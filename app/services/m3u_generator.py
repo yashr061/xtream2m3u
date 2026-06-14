@@ -23,6 +23,7 @@ def generate_m3u_playlist(
     include_channel_id=False,
     channel_id_tag="channel-id",
     enable_catchup=False,
+    include_tvg_id=True,
     proxy_url=None,
 ):
     """
@@ -42,6 +43,9 @@ def generate_m3u_playlist(
         include_channel_id: Whether to include channel IDs
         channel_id_tag: Tag name for channel IDs
         enable_catchup: Whether to emit catchup/timeshift tags for archive-enabled channels
+        include_tvg_id: Whether to emit a tvg-id on live channels (default on). Set
+            False to omit it entirely — some players (e.g. Emby) derive a visible
+            channel number from tvg-id, and not every user wants one (issue #25).
         proxy_url: Proxy URL for images and streams
 
     Returns:
@@ -197,11 +201,12 @@ def generate_m3u_playlist(
 
             tags = []
 
-            # Always emit tvg-id for live channels so players like Emby don't
-            # fall back to parsing the channel id from the .ts URL (issue #25).
-            # Prefer the provider's EPG id; fall back to stream_id so there's
-            # always a stable, non-URL-derived identifier.
-            if content_type == "live":
+            # Emit tvg-id for live channels (unless opted out) so players like
+            # Emby don't fall back to parsing the channel id from the .ts URL
+            # (issue #25). Prefer the provider's EPG id; fall back to stream_id so
+            # there's always a stable, non-URL-derived identifier. Users who want
+            # no channel number at all can disable this with include_tvg_id=False.
+            if content_type == "live" and include_tvg_id:
                 tvg_id = stream.get("epg_channel_id") or stream.get("stream_id", "")
                 if tvg_id:
                     tags.append(f'tvg-id="{tvg_id}"')

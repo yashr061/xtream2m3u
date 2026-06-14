@@ -160,6 +160,7 @@ For advanced users or automation, you can use the API endpoints directly.
 | `include_channel_id` | boolean | No | Add an extra channel-id tag (live channels already get `tvg-id` by default; this is for adding a second, custom-named tag) |
 | `channel_id_tag` | string | No | Custom tag name for the extra channel id added by `include_channel_id` (default: `channel-id`). Ignored if set to `tvg-id` since that's already emitted. |
 | `enable_catchup` | boolean | No | Set `true` to emit catchup/timeshift tags for archive-enabled channels. **Note:** catchup channels bypass the stream proxy (URLs stay raw) so players can construct timeshift URLs. |
+| `no_tvg_id` | boolean | No | Set `true` to omit the `tvg-id` tag on live channels. Some players (e.g. Emby) surface `tvg-id` as a visible channel number — enable this if you'd rather have none. |
 
 **Wildcard Support:** `unwanted_groups` and `wanted_groups` support `*` (wildcard) and `?` (single char).
 *   Example: `*Sports*` matches "Sky Sports", "BeIN Sports", etc.
@@ -228,7 +229,7 @@ Returns an M3U playlist containing every episode of the requested series IDs —
 
 ### 6. Proxy Endpoints
 *   `GET /image-proxy/<encoded_url>`: Proxies images (logos, covers).
-*   `GET /stream-proxy/<encoded_url>`: Proxies video streams.
+*   `GET /stream-proxy/<encoded_url>`: Proxies video streams. For **live** TS streams the proxy reconnects transparently when the provider's short-lived, rotating token URL expires, so playback isn't cut off (commonly seen as a freeze after ~10 minutes). VOD/series keep a single connection.
 
 ## License
 

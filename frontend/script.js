@@ -360,6 +360,7 @@ function updateApiUrl() {
     const noStreamProxy = document.getElementById('apiNoStreamProxy').checked;
     const includeChannelId = document.getElementById('apiIncludeChannelId').checked;
     const enableCatchup = document.getElementById('apiEnableCatchup').checked;
+    const noTvgId = document.getElementById('apiNoTvgId').checked;
     const proxyUrl = document.getElementById('apiProxyUrl').value.trim();
     const channelIdTag = document.getElementById('apiChannelIdTag').value.trim();
 
@@ -430,6 +431,7 @@ function updateApiUrl() {
         if (noStreamProxy) params.append('nostreamproxy', 'true');
         if (includeChannelId) params.append('include_channel_id', 'true');
         if (enableCatchup) params.append('enable_catchup', 'true');
+        if (noTvgId) params.append('no_tvg_id', 'true');
         if (proxyUrl) params.append('proxy_url', proxyUrl);
         if (channelIdTag) params.append('channel_id_tag', channelIdTag);
 
@@ -444,6 +446,7 @@ function updateApiUrl() {
             noStreamProxy,
             includeChannelId,
             enableCatchup,
+            noTvgId,
             proxyUrl,
             channelIdTag,
         });
@@ -465,6 +468,7 @@ function buildCliCommand(opts) {
     if (opts.includeSeries) parts.push('--include-series');
     if (opts.enableCatchup) parts.push('--enable-catchup');
     if (opts.includeChannelId) parts.push('--include-channel-id');
+    if (opts.noTvgId) parts.push('--no-tvg-id');
     if (opts.channelIdTag && opts.channelIdTag !== 'channel-id') {
         parts.push('--channel-id-tag', sh(opts.channelIdTag));
     }

@@ -76,6 +76,9 @@ def main():
                         help="Include the epg_channel_id tag on each entry")
     parser.add_argument("--channel-id-tag", default="channel-id",
                         help="Custom tag name for channel ID (default: channel-id)")
+    parser.add_argument("--no-tvg-id", action="store_true",
+                        help="Omit the tvg-id on live channels (some players, e.g. Emby, "
+                             "show it as a channel number)")
 
     # Proxy options
     parser.add_argument("--no-stream-proxy", action="store_true",
@@ -199,14 +202,19 @@ def main():
             include_channel_id=args.include_channel_id,
             channel_id_tag=args.channel_id_tag,
             enable_catchup=args.enable_catchup,
+            include_tvg_id=not args.no_tvg_id,
             proxy_url=args.proxy_url,
         )
 
+    # Both generators stream the playlist line-by-line (never held whole in
+    # memory), so iterate rather than treating the result as a single string.
     if args.output == "-":
-        sys.stdout.write(m3u)
+        for chunk in m3u:
+            sys.stdout.write(chunk)
     else:
         with open(args.output, "w", encoding="utf-8") as f:
-            f.write(m3u)
+            for chunk in m3u:
+                f.write(chunk)
         print(f"Wrote playlist to {args.output}", file=sys.stderr)
 
 

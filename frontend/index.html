@@ -212,6 +212,13 @@
                                    <div class="checkbox-text"><small>Enable Catchup</small></div>
                                </label>
                            </div>
+                           <div class="checkbox-wrapper" title="Omits the tvg-id tag on live channels. Some players (e.g. Emby) show tvg-id as a channel number — enable this if you don't want one.">
+                               <label class="checkbox-label" style="padding: 0.5rem;">
+                                   <input type="checkbox" id="apiNoTvgId" onchange="updateApiUrl()">
+                                   <div class="checkmark"></div>
+                                   <div class="checkbox-text"><small>No Channel Number</small></div>
+                               </label>
+                           </div>
                        </div>
 
                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-bottom: 1rem;">

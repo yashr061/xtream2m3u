@@ -5,7 +5,12 @@ import urllib.parse
 import requests
 from flask import Blueprint, Response
 
-from app.utils.streaming import generate_streaming_response, stream_request
+from app.utils.streaming import (
+    generate_live_streaming_response,
+    generate_streaming_response,
+    is_live_stream,
+    stream_request,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -59,6 +64,13 @@ def proxy_stream(stream_url):
                 content_type = "application/octet-stream"
 
         logger.info(f"Using content type: {content_type}")
+
+        # Live TS streams are an endless broadcast behind short-lived, rotating
+        # provider tokens. Reconnect transparently so the player never freezes
+        # when a token expires (issue #25). VOD/series are finite files and must
+        # keep the single-connection path so they aren't restarted from byte 0.
+        if is_live_stream(original_url):
+            return generate_live_streaming_response(response, original_url, content_type)
         return generate_streaming_response(response, content_type)
     except requests.Timeout:
         logger.error(f"Timeout connecting to stream: {original_url}")
