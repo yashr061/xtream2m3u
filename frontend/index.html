@@ -8,11 +8,158 @@
     <meta name="description" content="Convert Xtream IPTV APIs into customizable M3U playlists">
     <link rel="stylesheet" href="style.css">
     <link rel="icon" type="image/png" href="/assets/logo.png">
+    
+    <style>
+        :root {
+            --iron-dark: #0f0202;
+            --iron-card: #1a0404;
+            --iron-red: #e62429;
+            --iron-gold: #ffd700;
+            --iron-gold-dim: #cca400;
+            --iron-glow: rgba(230, 36, 41, 0.45);
+            --arc-blue: #00f0ff;
+        }
+
+        body {
+            background-color: var(--iron-dark) !important;
+            background-image: radial-gradient(circle at top, #360505 0%, var(--iron-dark) 75%) !important;
+            color: #ffffff !important;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+
+        /* Card and Containers */
+        .card, .modal-content {
+            background: var(--iron-card) !important;
+            border: 2px solid var(--iron-red) !important;
+            box-shadow: 0 0 25px var(--iron-glow), inset 0 0 15px rgba(255, 215, 0, 0.05) !important;
+            border-radius: 12px !important;
+        }
+
+        .card-header, .modal-header h3 {
+            color: var(--iron-gold) !important;
+            font-weight: bold !important;
+            text-transform: uppercase;
+            letter-spacing: 1.5px;
+            border-bottom: 2px solid var(--iron-red) !important;
+            text-shadow: 0 0 12px rgba(255, 215, 0, 0.4);
+        }
+
+        h1 {
+            color: var(--iron-red) !important;
+            text-shadow: 0 0 20px rgba(230, 36, 41, 0.8), 0 0 2px var(--iron-gold) !important;
+            font-weight: 900 !important;
+            text-transform: uppercase;
+        }
+
+        .subtitle {
+            color: #dddddd !important;
+        }
+
+        /* Form Controls */
+        label {
+            color: var(--iron-gold-dim) !important;
+            font-weight: 600 !important;
+            text-transform: uppercase;
+            font-size: 0.85rem;
+            letter-spacing: 0.5px;
+        }
+
+        input[type="text"], input[type="password"], input[type="url"], select {
+            background-color: #260808 !important;
+            border: 1px solid var(--iron-red) !important;
+            color: #ffffff !important;
+            border-radius: 6px !important;
+            transition: all 0.3s ease;
+        }
+
+        input:focus, select:focus {
+            border-color: var(--iron-gold) !important;
+            box-shadow: 0 0 12px rgba(255, 215, 0, 0.6) !important;
+            outline: none;
+        }
+
+        /* Checkboxes Custom Layout */
+        .checkmark {
+            border: 1px solid var(--iron-red) !important;
+            background-color: #120202 !important;
+        }
+        input:checked ~ .checkmark {
+            background-color: var(--iron-red) !important;
+            border-color: var(--iron-gold) !important;
+            box-shadow: 0 0 8px var(--iron-red);
+        }
+
+        /* Buttons */
+        .btn-primary, .btn-success {
+            background: linear-gradient(135deg, var(--iron-red) 0%, #800000 100%) !important;
+            border: 1px solid var(--iron-gold) !important;
+            color: #ffffff !important;
+            font-weight: bold !important;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            box-shadow: 0 4px 12px rgba(230, 36, 41, 0.5) !important;
+            transition: all 0.3s ease !important;
+        }
+
+        .btn-primary:hover, .btn-success:hover {
+            background: linear-gradient(135deg, #ff1a22 0%, var(--iron-red) 100%) !important;
+            box-shadow: 0 0 20px var(--iron-red) !important;
+            transform: translateY(-2px);
+        }
+
+        .btn-secondary {
+            background: #3d0b0b !important;
+            border: 1px solid var(--iron-red) !important;
+            color: #ffffff !important;
+        }
+        
+        .btn-secondary:hover {
+            background: #591111 !important;
+            border-color: var(--iron-gold) !important;
+        }
+
+        /* Telegram Pulse Button Layout */
+        .tg-btn-container {
+            display: flex;
+            justify-content: center;
+            margin-bottom: 25px;
+        }
+        
+        .telegram-btn {
+            background: linear-gradient(45deg, #0088cc, var(--arc-blue));
+            box-shadow: 0 0 15px rgba(0, 136, 204, 0.6);
+            font-weight: bold;
+            display: inline-flex;
+            align-items: center;
+            gap: 10px;
+            color: white;
+            padding: 12px 28px;
+            border-radius: 50px;
+            text-decoration: none;
+            transition: all 0.3s ease;
+            border: 2px solid #ffffff;
+            letter-spacing: 1px;
+        }
+        
+        .telegram-btn:hover {
+            transform: scale(1.05);
+            box-shadow: 0 0 25px var(--arc-blue);
+        }
+
+        /* Category Chips & Code Display adjustments */
+        .url-display-box {
+            background-color: #0b0101 !important;
+            border: 1px solid var(--iron-red) !important;
+        }
+        
+        code {
+            color: var(--arc-blue) !important;
+        }
+    </style>
 </head>
 
 <body>
     <div class="container">
-        <!-- Header -->
         <header class="header">
             <div class="logo">
                 <img src="/assets/logo.png" alt="xtream2m3u Logo">
@@ -21,7 +168,15 @@
             <p class="subtitle">Generate custom M3U playlists from your Xtream IPTV subscription.</p>
         </header>
 
-        <!-- Step 1: Credentials -->
+        <div class="tg-btn-container">
+            <a href="https://t.me/YOUR_TELEGRAM_CHANNEL" target="_blank" class="telegram-btn">
+                <svg style="width:24px;height:24px" viewBox="0 0 24 24">
+                    <path fill="currentColor" d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm4.64 6.8c-.15.15-.31.3-.46.45-1.12 1.12-2.24 2.24-3.36 3.36-.15.15-.31.15-.46 0-.74-.74-1.48-1.48-2.22-2.22-.15-.15-.15-.31 0-.46.15-.15.3-.3.45-.46.75-.75 1.49-1.49 2.24-2.24.15-.15.31-.15.46 0 .74.74 1.48 1.48 2.22 2.22.16.15.16.31.13.35z"/>
+                </svg>
+                JOIN OUR TELEGRAM CHANNEL
+            </a>
+        </div>
+
         <section class="step active" id="step1">
             <div class="card">
                 <div class="card-header">
@@ -88,13 +243,11 @@
             </div>
         </section>
 
-        <!-- Loading State -->
         <div class="loading" id="loading">
             <div class="spinner"></div>
             <p id="loadingText">Connecting to service...</p>
         </div>
 
-        <!-- Step 2: Category Selection -->
         <section class="step" id="step2">
             <div class="card">
                 <div class="card-header">
@@ -127,8 +280,7 @@
                     </div>
 
                     <div class="category-chips" id="categoryChips">
-                        <!-- Categories populated via JS -->
-                    </div>
+                        </div>
 
                     <div style="display: flex; gap: 1rem; justify-content: center; margin-top: 2rem; flex-wrap: wrap;">
                         <button class="btn btn-secondary" onclick="goBackToStep1()">
@@ -145,7 +297,6 @@
             </div>
         </section>
 
-        <!-- Step 3: Success -->
         <section class="step" id="step3">
             <div class="card">
                 <div class="success-state">
@@ -165,7 +316,6 @@
             </div>
         </section>
 
-        <!-- API Builder Modal -->
         <div class="modal" id="apiBuilderModal">
             <div class="modal-content" style="max-width: 700px;">
                 <div class="modal-header">
@@ -188,7 +338,6 @@
                        </div>
                    </div>
 
-                   <!-- Additional Options (only for M3U) -->
                    <div id="m3uOptions">
                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-bottom: 1rem;">
                            <div class="checkbox-wrapper" title="Disables stream proxying. URLs will point directly to the IPTV provider.">
@@ -256,15 +405,13 @@
             </div>
         </div>
 
-        <!-- Confirmation Modal -->
         <div class="modal" id="confirmationModal">
             <div class="modal-content">
                 <div class="modal-header">
                     <h3>Review & Generate</h3>
                 </div>
                 <div class="modal-summary" id="modalSummary">
-                    <!-- Summary populated via JS -->
-                </div>
+                    </div>
                 <div class="modal-actions">
                     <button class="btn btn-secondary" onclick="closeModal()">Cancel</button>
                     <button class="btn btn-success" onclick="confirmGeneration()">Generate</button>
